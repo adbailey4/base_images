@@ -1,0 +1,46 @@
+sudo: required
+services:
+- docker
+env:
+  global:
+  - REGISTRY_USER=travisbot
+  - BRANCH=${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}
+  - REPO=baileybase/embed
+  - secure: feZsBedC/8UZgvWlyVTFmRREeR7o7/htXTs+UkmSHa6cQp8UtTOAUClRcuRwkrIFLhVx+b7mrjrHhSHGiYJKoah3GQQ7nMaCItleVF2UTdi+PMhIjlEieYhv0FBoA+qfZcypteGHJLe/g3sp7mcABQ8/MDlZtk6adRnS4MkyOwTnOm3qANhj3I5fKQUThJUaoN7Hiv5cE3uR7xfYE0z60dK6CCNmF+dfat0c0Vi/q45QQp/+3TfLoBpTghNEwyNsSZ3MsXlJrz2TFlAQa9cir0A0M3z+5IK58ABU9m72AvD2xBvG79bkLqmh/MPrhCVtO44yTZzkUnrrYcAbP8sE8tzyuCrJvtqKivnArd92/d+kn/tCCqkX1KZNd/7KqcuAyX5vowlneQ6f12ocytzvb7kLjAfYsnZf8iUxHQdPqc7dZ1czqfn4jVkWmuMTDedcF4D+svKBtf8sxRbWaOvzScreRgYKCX01fLNl+acWzdjf3DdKt5cHA2SpEkBauWpRh9GCHGTBMIjh7Ovv+MkrLhQSzqU3coyyWKJUb89CA17DzXIQ16jG60uKiJfXRDfXuIZT+0y8m0JDR17H9r/27R16cpijAAsKq+QXf961GXqmCw+TABtRr0L2x3YXDWkz0bcP8nBS/hlghN+U9VAqxTlulJZT+o6v8neA9taKbeE=
+#notifications:
+#  slack:
+#    secure: NZuZZdOxl6Qrfqfre16A0r2dkg5UqJGMDhGWvhT/Qz3fcDQIkSQyPRSLSLtnmGL01h9N4n5fguInshF526CyEEE13o+AyZ7dGiV0pcSth/hqjKTcUxZdzkBJM0K1JEDSd4euRNSwgi2lQpyK5JHqyYWrMM6fs4S7XZSJ72Dq+9scTSHrQwncaYz4U+ILN338eJZeDGWM7LsH+9HeZAPEmg63DPHCm6lr7o/l5EpwvktGSxpcjj5WWNv0ho3CaDIxW2I94NYYHXRAZsqnBMYP4ZToke2ZgHlrNrw5MIDbwcCbhx8tCyiVzYnMYlxdQFTyYzoPgtmPCKyClJi9YerZID8nIKNIySIp6J+nH1wf914PKqZ/qKTqgNIP5zKZX8NwV4If6/QeoWqm/8YCs8xG4kAr6C+zRDwMWU8Y/6nj+psWM4x2XgK7Hm4maE8aFC36t7Y3vmU6F5wAuoE9jydnQQDvDgh3lhHAeUGgaiodJ8chj+RYc0n3anKewLTl7w3lc/IWlCL71ii0uHDAf+cXAKh2GQbb261WoFFkLQBRp4Jgto7ZAQ35FHo3N64XQJK/AQf00ciaoyv+OYalKvawoWl1s0TahTYEMhhRzIorwlb5JC376EXgpsXXguXi0HcJeRdA9htlAeq+2tkZivkLnSSyfPuzxs3u/4DQsC0HebI=
+#  email: false
+jobs:
+  include:
+  - os: linux
+    dist: bionic
+before_install:
+- curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+- sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu
+  $(lsb_release -cs) stable"
+- sudo apt-get update
+- sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
+- echo '{"features":{ "buildkit":true },"experimental":true}'  | sudo tee /etc/docker/daemon.json
+- sudo service docker restart
+- if [ "${BRANCH}" = "master" ]; then export BRANCH="latest"; else echo "Strings are
+  not equal."; fi
+- echo BRANCH "$BRANCH"
+before_script:
+- docker --version
+- docker version -f '{{.Server.Experimental}}'
+- docker pull $REPO || true
+script:
+#  embed base image
+- cp embed/Dockerfile .
+- export DOCKER_BUILDKIT=1
+- docker build --progress=plain --pull --cache-from $REPO:$BRANCH --tag $REPO:$BRANCH .
+- docker run $REPO:$BRANCH
+- rm Dockerfile
+before_deploy:
+- echo "$REGISTRY_PASS" | docker login --username $REGISTRY_USER --password-stdin
+deploy:
+  provider: script
+  script: docker push $REPO:$BRANCH
+  on:
+    all_branches: true
