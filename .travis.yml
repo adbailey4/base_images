@@ -33,7 +33,7 @@ before_script:
 - docker pull $REPO || true
 script:
 #  embed base image
-- cp embed/Dockerfile .
+- cp embed_dependencies/Dockerfile .
 - export DOCKER_BUILDKIT=1
 - docker build --progress=plain --pull --cache-from $REPO:$BRANCH --tag $REPO:$BRANCH .
 - docker run $REPO:$BRANCH
